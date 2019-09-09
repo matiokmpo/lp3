@@ -1,0 +1,212 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+void merge(int arr[], int l, int m, int r);
+void mergeSort(int arr[], int l, int r);
+
+int main (int argc, char *argv[]) {
+    pid_t childpid = 0,hermanomayor=0,hijomenor=0;
+    long number;
+    int* ptrnumeros;
+	ptrnumeros=NULL;
+    int n;
+    if (argc != 3)//verifica la validez de los argumentos ingresados
+    { 
+        fprintf(stderr, "Error al utilizar %d parametros. Son necesarios dos\n", argc);
+        return 1;
+    }
+    else{
+	    n = atoi(argv[1])+1;
+	    while(n>2)
+        {
+	        n=n/2;
+	    }
+        if(!(n ==2 || n==1))
+        {
+		    fprintf(stderr, "Error en el primer parametro. Debe de ser una potencia inferior inmediata de dos\n");
+	        return 1;
+	    }
+    }
+	n = atoi(argv[1]);
+	FILE *archivocompartido;
+        key_t clavecompartida;
+        int mem = 0;
+        int contador = 0;
+        int *mcompartida = NULL;
+
+        archivocompartido = fopen("/tmp/acompartido","w+");
+        clavecompartida = ftok("/tmp/acompartido",33);
+	if(clavecompartida==-1){
+	fprintf(stderr,"Error con la clave");
+	return -1;	
+	}
+	if(n==atoi(argv[1])){
+		mem = shmget(clavecompartida,sizeof(int *)*100,0777 | IPC_CREAT);	
+	}
+	if(mem==-1){
+	fprintf(stderr,"Error con zona");
+	return -1;	
+	}	
+	mcompartida = (int *)shmat (mem,(char *)0,0);
+
+     char s1[strlen(argv[2])+1];
+   char s2[2] = ",";
+   char *ptr;
+   int can=0;
+   int numproc=0;
+   memset(s1, '\0', sizeof(s1));
+   strcpy(s1,argv[2]);
+
+   ptr = strtok( s1, s2 );    // Primera llamada => Primer token
+   while( (ptr = strtok( NULL, s2 )) != NULL )    // Posteriores llamadas
+     can++;
+
+    int i=0;
+    int l=0 , r=can,m= l+(r-l)/2;
+    memset(s1, '\0', sizeof(s1));
+   strcpy(s1,argv[2]);
+	
+    ptr = strtok( s1, s2 );  // Primera llamada => Primer token
+    *(mcompartida + i)=atoi(ptr);
+   while( (ptr = strtok( NULL, s2 )) != NULL ){    // Posteriores llamadas
+     i++;
+     *(mcompartida + i)=atoi(ptr);
+   }
+	
+
+int j=0;
+ 
+     for (i = 1; n>1 & i < 3; i++)
+     {
+	    j++;
+        if ((childpid = fork()) == 0)
+        {
+		    int aux=j;
+		    while(aux>10)
+		      aux=aux-10;
+		    if(aux==1)
+            {
+		      r=m;
+		      numproc=numproc*2+2;
+		    }else
+            {
+		      l=m+1;
+		      numproc=numproc*2+1;
+		    }
+		    m = l+(r-l)/2;
+		    j=j*10;
+		    n=(int)n/2;
+		    i=0;
+		    hermanomayor=hijomenor;
+            }else{
+		    hijomenor=childpid;
+	    }   
+     }
+	printf("Proceso %d: ",numproc);
+	for(i=l;i<=r;i++)	 
+        printf("%d ",*(mcompartida+i));
+	    printf("\n");
+        if(n>1){
+     	    for(i=0; i<2;i++)
+	            waitpid(-1, NULL, 0);
+	            //merge(mcompartida,l,m,r);
+	            waitpid(hermanomayor, NULL, 0);
+	            printf("Proceso %d: lista izquierda{ ",numproc);
+	        for(i=l;i<=m;i++){	 
+                printf("%d ",*(mcompartida+i));
+	        }printf("}, lista derecha{ ");
+	        for(i=m+1;i<=r;i++){	 
+                printf("%d ",*(mcompartida+i));
+	        }printf("}\n");
+        }else
+            merge(mcompartida,l,m,r);
+	        mergeSort(mcompartida,l,r);	
+
+	    if(n==atoi(argv[1])){
+     	    printf("Lista ordenada: ");
+	        for(i=l;i<=r;i++)	 
+                printf("%d ",*(mcompartida+i));
+	        printf("\n");
+	    }
+        return 0;
+    }
+
+
+void merge(int* arr, int l, int m, int r){
+    int i, j, k;
+    int n1 = m - l + 1;
+    int n2 =  r - m;
+ 
+    //Crear arraays temporales
+    int L[n1], R[n2];
+ 
+    /* Copiar los datos a los arrays temporales L[] and R[] */
+    for (i = 0; i < n1; i++)
+        L[i] = *(arr + l + i);
+    for (j = 0; j < n2; j++)
+        R[j] = *(arr + m + 1+ j);
+ 
+    /* Fusionar los arrays tempporales nuevamente arr[l..r]*/
+    i = 0; // indice inicial del primer subarray
+    j = 0; // Indice inicial del segundo subarray
+    k = l; // Indice inicial de subarrays fucionados
+    while (i < n1 && j < n2)
+    {
+        if (L[i] <= R[j])
+        {
+            *(arr + k) = L[i];
+            i++;
+        }
+        else
+        {
+            *(arr + k) = R[j];
+            j++;
+        }
+        k++;
+    }
+ 
+    // Copia los elementos restantes L[], if there
+    while (i < n1)
+    {
+        *(arr + k) = L[i];
+        i++;
+        k++;
+    }
+ 
+    // Copia los elementos restantes R[]
+    while (j < n2)
+    {
+        *(arr + k) = R[j];
+        j++;
+        k++;
+    }
+}
+ 
+/* l es para el índice izquierdo y r es el índice derecho of the
+   sub-array de arr ordenado */
+void mergeSort(int* arr, int l, int r){
+    if (l < r)
+    {
+        // igual que(l+r)/2,pero evita el desbordamiento de largo l y h
+        int m = l+(r-l)/2;
+        // ordena las dos mitades
+        mergeSort(arr, l, m);
+        mergeSort(arr, m+1, r);
+        merge(arr, l, m, r);
+    }
+}
+
+
+
+
+
+
+
+
